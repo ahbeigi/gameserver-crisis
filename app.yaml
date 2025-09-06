@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fakegameserver-tournament
+  labels:
+    app: fakegameserver
+    mode: tournament
+spec:
+  replicas: 8
+  selector:
+    matchLabels:
+      app: fakegameserver
+      mode: tournament
+  template:
+    metadata:
+      labels:
+        app: fakegameserver
+        mode: tournament
+    spec:
+      hostNetwork: true
+      nodeSelector:
+        node-type: tournament
+        # instance-type: c5n.2xlarge
+        instance-type: kind-control-plane
+      tolerations:
+        - key: "game-server"
+          operator: "Equal"
+          value: "tournament"
+          effect: "NoSchedule"
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: mode
+                      operator: In
+                      values:
+                        - tournament
+                topologyKey: kubernetes.io/hostname
+      volumes:
+        - name: server-config
+          configMap:
+            name: tournament-config
+      containers:
+        - name: mockgameserver
+          image: kyon/gameserver:latest
+          ports:
+            - containerPort: 7000
+              protocol: UDP
+              name: game-port
+            - containerPort: 7000
+              protocol: TCP
+              name: api-port
+          resources:
+            requests:
+              cpu: "2"
+              memory: 4Gi
+            limits:
+              cpu: "4"
+              memory: 8Gi
+          env:
+            - name: SERVER_NAME
+              value: "Tournament Server"
+            - name: MAX_PLAYERS
+              value: "16"
+            - name: GAME_MODE
+              value: "deathmatch"
+            - name: GAME_PORT
+              value: "7000"
+          volumeMounts:
+            - name: server-config
+              mountPath: /app/config/server.yaml
+              subPath: server.yaml
